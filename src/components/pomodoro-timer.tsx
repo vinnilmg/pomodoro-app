@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useInterval } from '../hooks/use-interval';
+import { preencheQtdCiclos, secondsToTime } from '../utils/utils';
 import { Button } from './button';
 import { Timer } from './timer';
 
@@ -20,39 +21,94 @@ interface Props {
 }
 
 export function PomodoroTimer(props: Props): JSX.Element {
-  const [mainTime, setMainTime] = React.useState(props.pomodoroTime);
-  const [timeCounting, setTimeCounting] = React.useState(false);
-  const [working, setWorking] = React.useState(false);
-  const [resting, setResting] = React.useState(false);
-
-  // Executa cada vez que a variável mudar de estado
-  useEffect(() => {
-    if (working) document.body.classList.add('working');
-    if (resting) document.body.classList.remove('working');
-  }, [working, resting]);
+  const [mainTime, setMainTime] = useState(props.pomodoroTime);
+  const [timeCounting, setTimeCounting] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [resting, setResting] = useState(false);
+  const [cyclesQtdManager, setCyclesQtdManager] = useState(
+    preencheQtdCiclos(props.cycles - 1),
+  );
+  const [completedCycles, setCompletedCycles] = useState(0);
+  const [fullWorkingTime, setFullWorkingTime] = useState(0);
+  const [numberOfPomodoros, setNumberOfPomodoros] = useState(0);
 
   useInterval(
     () => {
       setMainTime(mainTime - 1);
+
+      // Conta somente no state 'working'
+      if (working) setFullWorkingTime(fullWorkingTime + 1);
     },
     timeCounting ? 1000 : null,
   );
 
-  const configureWork = () => {
+  const configureWork = useCallback(() => {
     setTimeCounting(true);
     setWorking(true);
     setResting(false);
     setMainTime(props.pomodoroTime);
     audioStartWorking.play();
-  };
+  }, [
+    setWorking,
+    setTimeCounting,
+    setResting,
+    setMainTime,
+    props.pomodoroTime,
+  ]);
 
-  const configureRest = (long: boolean) => {
-    setTimeCounting(true);
-    setResting(true);
-    setWorking(false);
-    setMainTime(long ? props.longRestTime : props.shortRestTime);
-    audioStopWorking.play();
-  };
+  const configureRest = useCallback(
+    (long: boolean) => {
+      setTimeCounting(true);
+      setResting(true);
+      setWorking(false);
+      setMainTime(long ? props.longRestTime : props.shortRestTime);
+      audioStopWorking.play();
+    },
+    [
+      setTimeCounting,
+      setResting,
+      setWorking,
+      setMainTime,
+      props.longRestTime,
+      props.shortRestTime,
+    ],
+  );
+
+  // Executa cada vez que a variável mudar de estado
+  useEffect(() => {
+    if (working) document.body.classList.add('working');
+    if (resting) document.body.classList.remove('working');
+
+    // Só valida as regras do pomodoro se acabar o tempo
+    if (mainTime > 0) return;
+
+    // Regras do Pomodoro
+    if (working && cyclesQtdManager.length > 0) {
+      configureRest(false);
+      cyclesQtdManager.pop();
+    } else if (working && cyclesQtdManager.length <= 0) {
+      configureRest(true);
+      setCyclesQtdManager(preencheQtdCiclos(props.cycles - 1));
+      setCompletedCycles(completedCycles + 1);
+    }
+
+    if (working) setNumberOfPomodoros(numberOfPomodoros + 1);
+    if (resting) configureWork();
+  }, [
+    working,
+    resting,
+    mainTime,
+    cyclesQtdManager,
+    completedCycles,
+    numberOfPomodoros,
+    configureRest,
+    configureWork,
+    setCyclesQtdManager,
+    setCompletedCycles,
+    setNumberOfPomodoros,
+    preencheQtdCiclos,
+    props.cycles,
+  ]);
 
   return (
     <div className="pomodoro">
@@ -74,11 +130,9 @@ export function PomodoroTimer(props: Props): JSX.Element {
       </div>
 
       <div className="details">
-        <p>Testando: 12345</p>
-        <p>Testando: 12345</p>
-        <p>Testando: 12345</p>
-        <p>Testando: 12345</p>
-        <p>Testando: 12345</p>
+        <p>Ciclos concluídos: {completedCycles}</p>
+        <p>Horas trabalhadas: {secondsToTime(fullWorkingTime)}</p>
+        <p>Pomodoros concluídos: {numberOfPomodoros}</p>
       </div>
     </div>
   );

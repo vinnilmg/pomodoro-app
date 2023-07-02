@@ -4,3 +4,7 @@ export function secondsToTime(seconds: number): string {
   const sec = zeroLeft((seconds % 60) % 60);
   return `${min}:${sec}`;
 }
+
+export function preencheQtdCiclos(qtdCiclos: number) {
+  return new Array(qtdCiclos).fill(true);
+}
